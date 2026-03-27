@@ -14,7 +14,6 @@ public class Player
     }
     
     private int _currentFrame;
-    private int _tempSaveFrame;
     private int _framesCounter;
     private int _attackFrameCounter = -1;
     
@@ -57,19 +56,12 @@ public class Player
             _currentAnim.Texture.Height);
     }
 
-    public void PlayerMovement()
+    public void PlayerAnimationHandler()
     {
         // TODO: Movementmatrix an DeltaTime anpassen (jetzt noch kein Bock lol)
         
         _movementMatrix = Vector2.Zero;
-        _speed = 2;
-        int currentAnimSpeed = 8;
-
-        if (Raylib.IsKeyDown(KeyboardKey.LeftShift))
-        {
-            _speed = 6;
-            currentAnimSpeed = 12;
-        }
+        _speed = Raylib.IsKeyDown(KeyboardKey.LeftShift) ? 6 : 2;
 
         if (!_isAttacking)
         {
@@ -80,72 +72,57 @@ public class Player
             if (Raylib.IsKeyPressed(KeyboardKey.J)) _isAttacking = true;
         }
 
-        
+        // Normalisierung für diagonal
         if (_movementMatrix.X != 0 && _movementMatrix.Y != 0)
         {
-            _movementMatrix.X = (float) (_movementMatrix.X / Math.Sqrt(2));
-            _movementMatrix.Y = (float) (_movementMatrix.Y / Math.Sqrt(2));
+            _movementMatrix = Vector2.Normalize(_movementMatrix) * _speed;
         }
 
-        _isWalking = _movementMatrix.ToScalar() != 0;
-        if (_movementMatrix.X != 0) _frameRec.Width = Math.Sign(_movementMatrix.X) * Math.Abs(_frameRec.Width);
-        
-        _position.X += _movementMatrix.X;
-        _position.Y += _movementMatrix.Y;
+        _isWalking = _movementMatrix.Length() > 0;
+        _position += _movementMatrix;
 
         // Check next Animation
-        Animation nextAnim;
-        switch (_isAttacking)
-        {
-            // Animation-Wechsel
-            case false:
-            {
-                nextAnim = _isWalking ? _runAnim : _idleAnim;
-                break;
-            }
-            case true:
-                nextAnim = _fightAnim;
-                if (_attackFrameCounter == -1)
-                {
-                    _attackFrameCounter = 0;
-                    _tempSaveFrame = _currentFrame;
-                    _currentFrame = _attackFrameCounter;
-                    InitAttack((int)_frameRec.Width);
-                }
-                break;
-        }
+        Animation nextAnim = _isAttacking ? _fightAnim : (_isWalking ? _runAnim : _idleAnim);
 
         if (nextAnim.Texture.Id != _currentAnim.Texture.Id) 
         {
             _currentAnim = nextAnim;
             _currentFrame = 0;
             _framesCounter = 0;
-            
-            _frameRec.Width = Math.Sign(_frameRec.Width) * ((float)_currentAnim.Texture.Width / _currentAnim.Frames);
-            _frameRec.Height = _currentAnim.Texture.Height;
+            if (_isAttacking) _attackFrameCounter = 0;
         }
 
-        if (_movementMatrix.X != 0) 
-            _frameRec.Width = Math.Sign(_movementMatrix.X) * Math.Abs(_frameRec.Width);
-        
-        _position += _movementMatrix;
-        
-        // Updater
-        _framesCounter++;
-        if (_framesCounter < _targetFps / _currentAnim.Speed) return;
-        _framesCounter = 0;
-        _currentFrame++;
-        if (_attackFrameCounter != -1) _attackFrameCounter++;
+        // Blickrichtung
+        float frameWidth = (float)_currentAnim.Texture.Width / _currentAnim.Frames;
+        if (_movementMatrix.X < 0) _frameRec.Width = -frameWidth;
+        else if (_movementMatrix.X > 0) _frameRec.Width = frameWidth;
 
-        Console.WriteLine(_currentFrame);
+        _frameRec.Height = _currentAnim.Texture.Height;
         
-        if (_currentFrame >= _currentAnim.Frames) _currentFrame = 0;
+        // Frame-Counter Logik
+        _framesCounter++;
+        if (_framesCounter >= _targetFps / _currentAnim.Speed)
+        {
+            _framesCounter = 0;
+            _currentFrame++;
+
+            if (_isAttacking)
+            {
+                _attackFrameCounter++;
+                if (_attackFrameCounter >= _currentAnim.Frames)
+                {
+                    _isAttacking = false;
+                    _attackFrameCounter = -1;
+                    _currentFrame = 0;
+                }
+            }
+            else if (_currentFrame >= _currentAnim.Frames)
+            {
+                _currentFrame = 0;
+            }
+        }
 
         _frameRec.X = _currentFrame * Math.Abs(_frameRec.Width);
-        if (_attackFrameCounter != 4) return;
-        _isAttacking = false;
-        _attackFrameCounter = -1;
-        _currentFrame = _tempSaveFrame;
     }
 
     public void InitAttack(int direction)

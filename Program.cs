@@ -21,7 +21,7 @@ internal static class Program
         while (!Raylib.WindowShouldClose())
         {
             
-            p.PlayerMovement();
+            p.PlayerAnimationHandler();
 
             // Draw
             
